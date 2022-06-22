@@ -81,6 +81,7 @@ This will be used to build our virtual graph traversal structure
 
 (require racket/match
          (only-in racket/list empty?)
+         (only-in racket/string string-join)
          )
 
 (provide define/uml Render-to)
@@ -116,7 +117,6 @@ This will be used to build our virtual graph traversal structure
     ([boolean? other-ids] G)
     (else
      (foldl (λ (pair acc)
-              (printf "Connecting ~a to ~a\n" (car pair) (cdr pair))
               (Graph-add-edge acc (car pair) (cdr pair)))
             G
             (map (λ (gid) (cons node-id gid)) other-ids)))))
@@ -130,7 +130,7 @@ This will be used to build our virtual graph traversal structure
             (Graph-add-edges G (Node-id node) uids))
         (Graph-add-edges
          (Graph (Graph-entrynode G)
-                (hash-set nodes (Node-id node) (Node-contents node))
+                (hash-set nodes (Node-id node) node)
                 (Graph-edges G))
          (Node-id node)
          uids))))
@@ -149,13 +149,11 @@ This will be used to build our virtual graph traversal structure
 ;; each item will be then later added to a graph with a foldl
 (define (block->graph-items code)
   (define (inner code uid gcc)
-    (displayln code)
     (if (empty? code)
         gcc
         (match code
           ([list 'define (list f args ...) code ...]
            (begin
-             (displayln "Got a define!")
              (let ([new-id (gensym)])
                (inner (car code) new-id
                       (Graph-add-node gcc (Node uid (format "~a ~a" f args))
@@ -163,9 +161,9 @@ This will be used to build our virtual graph traversal structure
           ([list 'if C T F]
            (let ([leftid (gensym)]
                  [rightid (gensym)])
-             (let ([leftc (inner T leftid gcc)])
-               (let ([rightc (inner F rightid leftc)])
-                 (Graph-add-node rightc
+             (let ([rightc (inner T rightid gcc)])
+               (let ([leftc (inner F leftid rightc)])
+                 (Graph-add-node leftc
                                  (Node uid (format "if ~a" C))
                                  #:connects (list leftid rightid))))))
           (dat (Graph-add-node gcc
@@ -175,17 +173,52 @@ This will be used to build our virtual graph traversal structure
 
 
 
+(define (find-edges k edges)
+  (map cdr
+       (filter (λ (edge) (eqv? k (car edge)))
+               edges)))
+
+
+(define (write-graph-dot G)
+  (displayln "digraph {")
+
+  (define (visit id visited)
+    (unless (member id visited)
+      (define node (hash-ref (Graph-nodes G) id))
+      (define edges (find-edges id (Graph-edges G)))
+      (printf "~a [label=\"~a\"]\n"
+              (Node-id node)
+              (Node-contents node))
+      (for ([edge edges])
+        (define enode (hash-ref (Graph-nodes G) edge))
+        (printf "~a -> ~a\n" 
+               (Node-id node)
+               (Node-id enode)))
+      (for-each
+       (λ (kid) (visit kid (cons id visited)))
+       edges)))
+  (visit (Graph-entrynode G) '())
+  (displayln "}"))
+  
+
+
+
 (define (Render-to fname)
-  (for ([code (*things-to-graph*)])
-    (displayln (block->graph-items code))))
+  (call-with-output-file fname
+    #:exists 'replace
+    (λ (out)
+      (parameterize ([current-output-port out])
+        (for ([code (*things-to-graph*)])
+          (write-graph-dot (block->graph-items code)))))))
 
-
-(define/uml g 3)
 
 ;; testing section
-(define/uml (f x)
-  (if (= x 3) 3 4))
-
+(define/uml (pet animal time)
+  (if (string=? animal "dog")
+      (if (< time 12)
+          "It's time to walk the dog"
+          "It's time to feed the dog")
+      "You don't know what to do with this animal"))
 
 (Render-to "Test.dot")
 
