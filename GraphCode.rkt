@@ -79,9 +79,11 @@ This will be used to build our virtual graph traversal structure
 |#
 
 
-(require racket/match)
+(require racket/match
+         (only-in racket/list empty?)
+         )
 
-(provide Define Render-to)
+(provide define/uml Render-to)
 
 (define *things-to-graph*
   (make-parameter '()))
@@ -92,44 +94,96 @@ This will be used to build our virtual graph traversal structure
 
 
 
-(struct Node  (id contents))
-(struct Graph (nodes edges))
+(struct Node  (id contents) #:transparent)
+(struct Graph (entrynode nodes edges) #:transparent)
 
 
-(define (Graph-init)
-  (Graph (make-immutable-hash '())))
+(define (Graph-init firstid)
+  (Graph firstid
+         (make-immutable-hash '())
+         '()))
+
+(define (Graph-add-edge G node-id other-id)
+  (Graph (Graph-entrynode G)
+         (Graph-nodes G)
+         (cons `(,node-id . ,other-id)
+               (Graph-edges G))))
+
+(define (Graph-add-edges G node-id [other-ids '()])
+  (cond
+    ([empty?   other-ids] G)
+    ([symbol?  other-ids] G)
+    ([boolean? other-ids] G)
+    (else
+     (foldl (λ (pair acc)
+              (printf "Connecting ~a to ~a\n" (car pair) (cdr pair))
+              (Graph-add-edge acc (car pair) (cdr pair)))
+            G
+            (map (λ (gid) (cons node-id gid)) other-ids)))))
+  
+
+(define (Graph-add-node G node #:connects [uids #f])
+  (let ([nodes (Graph-nodes G)])
+    (if (hash-has-key? nodes (Node-id node))
+        (if (not (eqv? #f uids))
+            G
+            (Graph-add-edges G (Node-id node) uids))
+        (Graph-add-edges
+         (Graph (Graph-entrynode G)
+                (hash-set nodes (Node-id node) (Node-contents node))
+                (Graph-edges G))
+         (Node-id node)
+         uids))))
 
 
-(define (Graph-add-connection N1 N2)
 
-
-
-(define-syntax-rule (Define code ...)
+(define-syntax-rule (define/uml code ...)
   (begin
-    (*things-to-graph* (cons `(code ...)
+    (*things-to-graph* (cons `(define code ...)
                              (*things-to-graph*)))
     (define code ...)))
 
 
-(define (build-graph code-datums)
-  (define (inner code gcc)
+
+;; Convert a singular piece of code into a list of graph items
+;; each item will be then later added to a graph with a foldl
+(define (block->graph-items code)
+  (define (inner code uid gcc)
+    (displayln code)
     (if (empty? code)
         gcc
-        (let ([head (car code)]
-              [tail (cdr code)])
-          (if (empty? tail)
-              (inner tail (graph-update ))
+        (match code
+          ([list 'define (list f args ...) code ...]
+           (begin
+             (displayln "Got a define!")
+             (let ([new-id (gensym)])
+               (inner (car code) new-id
+                      (Graph-add-node gcc (Node uid (format "~a ~a" f args))
+                                      #:connects (list new-id))))))
+          ([list 'if C T F]
+           (let ([leftid (gensym)]
+                 [rightid (gensym)])
+             (let ([leftc (inner T leftid gcc)])
+               (let ([rightc (inner F rightid leftc)])
+                 (Graph-add-node rightc
+                                 (Node uid (format "if ~a" C))
+                                 #:connects (list leftid rightid))))))
+          (dat (Graph-add-node gcc
+                               (Node uid (format "~a" dat)))))))
+  (let ([first-sym (gensym)])
+    (inner code first-sym (Graph-init first-sym))))
+
 
 
 (define (Render-to fname)
-  (for ([x (*things-to-graph*)])
-    0))
+  (for ([code (*things-to-graph*)])
+    (displayln (block->graph-items code))))
 
 
-(Define g 3)
+(define/uml g 3)
 
 ;; testing section
-(Define (f x)
+(define/uml (f x)
   (if (= x 3) 3 4))
 
 
