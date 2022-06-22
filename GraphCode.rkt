@@ -80,7 +80,7 @@ This will be used to build our virtual graph traversal structure
 
 
 (require racket/match
-         (only-in racket/list empty?)
+         (only-in racket/list empty? remove-duplicates)
          (only-in racket/string string-join)
          )
 
@@ -148,77 +148,101 @@ This will be used to build our virtual graph traversal structure
 ;; Convert a singular piece of code into a list of graph items
 ;; each item will be then later added to a graph with a foldl
 (define (block->graph-items code)
-  (define (inner code uid gcc)
+  (define (inner code uid gcc #:next-section [ns #f])
+    (printf "Code: ~a\n" code)
+    (printf "UID: ~a\n" uid)
+    (printf "Next section: ~a\n" ns)
     (if (empty? code)
         gcc
         (match code
-          ([list 'define (list f args ...) code ...]
-           (begin
-             (let ([new-id (gensym)])
-               (inner (car code) new-id
-                      (Graph-add-node gcc (Node uid (format "~a ~a" f args))
-                                      #:connects (list new-id))))))
+          ; Add the define header, then recurse over the code
+          ([list 'define (list f args ...) datum ...]
+           (let ([next-id (gensym)])
+             (inner datum next-id
+                    (Graph-add-node gcc (Node uid (format "~a ~a" f args))
+                                    #:connects (list next-id)))))
           ([list 'if C T F]
            (let ([leftid (gensym)]
                  [rightid (gensym)])
-             (let ([rightc (inner T rightid gcc)])
-               (let ([leftc (inner F leftid rightc)])
+             (let ([rightc (inner F rightid gcc #:next-section ns)])
+               (let ([leftc (inner T leftid rightc #:next-section ns)])
                  (Graph-add-node leftc
                                  (Node uid (format "if ~a" C))
                                  #:connects (list leftid rightid))))))
+
+          ([list x ...]
+           (let ([next-id (gensym)])
+             (inner (cdr x) next-id 
+                    (inner (car x) uid gcc
+                           #:next-section (if (empty? (cdr x)) #f next-id)))))
+          
           (dat (Graph-add-node gcc
-                               (Node uid (format "~a" dat)))))))
+                               (Node uid (format "~a" dat))
+                               #:connects
+                               (if (not (eqv? #f ns))
+                                   (list ns)
+                                   '())))
+          )))
   (let ([first-sym (gensym)])
     (inner code first-sym (Graph-init first-sym))))
 
 
 
 (define (find-edges k edges)
-  (map cdr
-       (filter (λ (edge) (eqv? k (car edge)))
-               edges)))
+  (remove-duplicates
+   (map cdr
+        (filter (λ (edge) (eqv? k (car edge)))
+                edges))))
 
 
 (define (write-graph-dot G)
   (displayln "digraph {")
 
-  (define (visit id visited)
-    (unless (member id visited)
-      (define node (hash-ref (Graph-nodes G) id))
-      (define edges (find-edges id (Graph-edges G)))
-      (printf "~a [label=\"~a\"]\n"
-              (Node-id node)
-              (Node-contents node))
-      (for ([edge edges])
-        (define enode (hash-ref (Graph-nodes G) edge))
-        (printf "~a -> ~a\n" 
-               (Node-id node)
-               (Node-id enode)))
-      (for-each
-       (λ (kid) (visit kid (cons id visited)))
-       edges)))
-  (visit (Graph-entrynode G) '())
+  ; write all the nodes out (somehow...)
+  (for ([key-val (hash->list (Graph-nodes G))])
+    (define k (car key-val))
+    (define node (cdr key-val))
+    (printf "~a [label=\"~a\"]\n"
+            (Node-id node)
+            (Node-contents node)))
+
+  ; then connect all the edges
+  (for ([edge-p (remove-duplicates (Graph-edges G))])
+    (printf "~a -> ~a\n"
+            (car edge-p)
+            (cdr edge-p)))
+  
   (displayln "}"))
   
 
 
 
 (define (Render-to fname)
+
+  (define graphs (map block->graph-items (*things-to-graph*)))
+  (for ([g graphs])
+    (displayln g))
+  
   (call-with-output-file fname
     #:exists 'replace
     (λ (out)
       (parameterize ([current-output-port out])
-        (for ([code (*things-to-graph*)])
-          (write-graph-dot (block->graph-items code)))))))
+        (for ([g graphs])
+          (write-graph-dot g)))))) 
 
 
 ;; testing section
 (define/uml (pet animal time)
   (if (string=? animal "dog")
       (if (< time 12)
-          "It's time to walk the dog"
-          "It's time to feed the dog")
-      "You don't know what to do with this animal"))
+          "Walk time"
+          "Lunch time")
+      "You don't know what to do with this animal")
+  (if (= time 12)
+      "Morbin time"
+      "Not morbin time")
+  (displayln "get morbed")
+  (void))
 
 (Render-to "Test.dot")
 
