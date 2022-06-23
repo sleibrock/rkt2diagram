@@ -91,6 +91,7 @@ TODO LIST:
 (require racket/match
          (only-in racket/list empty? remove-duplicates)
          (only-in racket/string string-join)
+         (only-in racket/contract -> and/c or/c define/contract)
          )
 
 (provide define/diagram Render-Diagrams)
@@ -199,7 +200,8 @@ TODO LIST:
   (puts "C: ~a\n" code)
   (match code
     ([list 'let (list binds ...) seq ...]
-     (displayln "Got a Let"))
+     (puts "Got a Let")
+     (parse-sequence seq uid gcc))
     ([list 'if C T F]
      (let ([leftid  (gensym)]
            [rightid (gensym)])
@@ -208,15 +210,27 @@ TODO LIST:
            (Graph-add-node leftcc (Node uid (format "if ~a" C))
                            #:connects (list leftid rightid))))))
     ([list 'cond conds ...]
-     (displayln "Got a cond"))
+     (puts "Got a cond"))
     ([list 'case v seq ...]
-     (displayln "Got a case"))
+     (puts "Got a case"))
     ([list 'when C seq ...]
-     (displayln "Got a when"))
+     (puts "Got a when")
+     (let ([when-id (gensym)])
+       (parse-sequence seq when-id
+                       (Graph-add-node gcc (Node uid (format "when ~a" C))
+                                       #:connects (list when-id)))))
     ([list 'unless C seq ...]
-     (displayln "Got an unless"))
+     (displayln "Got an unless")
+     (let ([unless-id (gensym)])
+       (parse-sequence seq unless-id
+                       (Graph-add-node gcc (Node uid (format "unless ~a" C))
+                                       #:connects (list unless-id)))))
     ([list 'begin seq ...]
-     (displayln "Got a begin"))
+     (puts "Got a begin")
+     (let ([begin-id (gensym)])
+       (parse-sequence seq begin-id
+                       (Graph-add-node gcc (Node uid "begin")
+                                       #:connects (list begin-id)))))
   (datum
    (Graph-add-node gcc
                    (Node uid (format "~a" datum))
@@ -313,10 +327,13 @@ TODO LIST:
   (*verbosity* #t)
 
   (define/diagram (test-function x)
-    (if (= x 5)
-        "It's 5"
-        "It's not 5"))
-
+    (begin
+      (unless "morbin time" 
+        (if (= x 5)
+            "It's 5"
+            "It's not 5")
+        (displayln "Done morbin"))))
+    
   (Render-Diagrams "Test.dot")
   )
 
