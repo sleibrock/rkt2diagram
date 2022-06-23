@@ -141,7 +141,7 @@ This will be used to build our virtual graph traversal structure
 
 
 
-(define-syntax-rule (define/uml code ...)
+(define-syntax-rule (define/diagram code ...)
   (begin
     (*things-to-graph* (cons `(define code ...)
                              (*things-to-graph*)))
@@ -305,7 +305,7 @@ This will be used to build our virtual graph traversal structure
           (write-graph-dot g)))))) 
 
 
-(define/uml (code->uml code)
+(define/diagram (code->uml code)
   (displayln "You want to make a graph")
   (if (list? code)
       (code->graph code)
