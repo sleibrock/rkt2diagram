@@ -16,3 +16,6 @@ rkt2uml is a library wrapper that lets you convert your plain Racket code into a
 ```
 3. The code is evaluated as usual into a regular function, but the code is absorbed into an accumulator parameter list.
 4. Once you're done defining functions/values, you execute with a function at the end.
+5. Enjoy your new UML diagram
+
+![a really horrible function to count numbers](docs/sum_values.png)
