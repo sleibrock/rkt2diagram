@@ -76,6 +76,15 @@ There will be at least 5 rules for code here to render.
 Since code can look similar in many places, we need to bind
 IDs to each code datum using `gensym` to generate IDs on the fly.
 This will be used to build our virtual graph traversal structure
+
+
+TODO LIST:
+* cond
+* let
+* begin
+* case
+* when
+* unless
 |#
 
 
@@ -84,7 +93,7 @@ This will be used to build our virtual graph traversal structure
          (only-in racket/string string-join)
          )
 
-(provide define/uml Render-to)
+(provide define/diagram Render-Diagrams)
 
 (define *things-to-graph*
   (make-parameter '()))
@@ -99,10 +108,15 @@ This will be used to build our virtual graph traversal structure
     (apply printf args)))
 
 
+;; The basic two structures for describing our graph
+;; TODO: add support for more shapes to support Graphviz fully
 (struct Node  (id contents) #:transparent)
 (struct Graph (entrynode nodes edges) #:transparent)
 
 
+;; Graph-init - given an ID, create an empty graph
+;; The ID is used as the start so we know where to start from
+;; The ID however, is left not included
 (define (Graph-init firstid)
   (Graph firstid
          (make-immutable-hash '())
@@ -229,29 +243,23 @@ This will be used to build our virtual graph traversal structure
 ;; the + call, but displayln occurs before +, so in that sense,
 ;; the "flow" is displayln first, then +, meaning displayln
 ;; connects to +
-;;
-;; To parse this, we must iterate over all expressions in a sequence
-;; and link the final outputs of each code piece to the next sequence
-;; by using the #:next-section hidden variable in parse-code.
-;; parse-code will use #:next-section when it's at the bottom of an
-;; expression tree to connect to the next sequence.
 (define (parse-sequence codes sid gcc)
-  (printf "----Section----\n")
-  (printf "sid: ~a\n" sid)
-  (printf "c: ~a\n" codes)
+  (puts "----Section----\n")
+  (puts "sid: ~a\n" sid)
+  (puts "c: ~a\n" codes)
   (match codes
     ([list lastcode]
-     (displayln "GOT ONE ITEM")
+     (puts "GOT ONE ITEM")
      (parse-code lastcode sid gcc))
     ([list code1 code2]
-     (displayln "GOT TWO ITEMS")
+     (puts "GOT TWO ITEMS")
      (let ([id1 (gensym)]
            [id2 (gensym)])
        (parse-code code2 id2
                    (parse-code code1 sid gcc
                                #:next-section id2))))
     ([list codes ...]
-     (displayln "GOT N ITEMS")
+     (puts "GOT N ITEMS")
      (let ([id1 (gensym)]
            [id2 (gensym)])
        (parse-sequence (cdr codes)
@@ -261,8 +269,7 @@ This will be used to build our virtual graph traversal structure
     (_ gcc)))
      
 
-
-
+;; Find all edges in the graph that correspond with k
 (define (find-edges k edges)
   (remove-duplicates
    (map cdr
@@ -272,27 +279,22 @@ This will be used to build our virtual graph traversal structure
 
 (define (write-graph-dot G)
   (displayln "digraph {")
-
-  ; write all the nodes out (somehow...)
   (for ([key-val (hash->list (Graph-nodes G))])
     (define k (car key-val))
     (define node (cdr key-val))
     (printf "~a [label=\"~a\"]\n"
             (Node-id node)
             (Node-contents node)))
-
-  ; then connect all the edges
   (for ([edge-p (remove-duplicates (Graph-edges G))])
     (printf "~a -> ~a\n"
             (car edge-p)
             (cdr edge-p)))
-  
   (displayln "}"))
   
 
 
 
-(define (Render-to fname)
+(define (Render-Diagrams fname)
   (define graphs (map code->graph (*things-to-graph*)))
   (for ([g graphs])
     (displayln g))
@@ -305,19 +307,18 @@ This will be used to build our virtual graph traversal structure
           (write-graph-dot g)))))) 
 
 
-(define/diagram (code->uml code)
-  (displayln "You want to make a graph")
-  (if (list? code)
-      (code->graph code)
-      "Not a code list")
-  (displayln "Your code was UML'd"))
 
+(module+ test
+  (require rackunit)
+  (*verbosity* #t)
 
-;(for ([code (*things-to-graph*)])
-;  (displayln code)
-;  (displayln (code->graph code)))
+  (define/diagram (test-function x)
+    (if (= x 5)
+        "It's 5"
+        "It's not 5"))
 
-(Render-to "Test.dot")
+  (Render-Diagrams "Test.dot")
+  )
 
 
 ; end
