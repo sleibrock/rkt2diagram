@@ -90,9 +90,13 @@ This will be used to build our virtual graph traversal structure
   (make-parameter '()))
 
 
-(define *output-items*
-  (make-parameter '()))
+(define *verbosity*
+  (make-parameter #f))
 
+
+(define (puts . args)
+  (when (*verbosity*)
+    (apply printf args)))
 
 
 (struct Node  (id contents) #:transparent)
@@ -145,46 +149,117 @@ This will be used to build our virtual graph traversal structure
 
 
 
-;; Convert a singular piece of code into a list of graph items
-;; each item will be then later added to a graph with a foldl
-(define (block->graph-items code)
-  (define (inner code uid gcc #:next-section [ns #f])
-    (printf "Code: ~a\n" code)
-    (printf "UID: ~a\n" uid)
-    (printf "Next section: ~a\n" ns)
-    (if (empty? code)
-        gcc
-        (match code
-          ; Add the define header, then recurse over the code
-          ([list 'define (list f args ...) datum ...]
-           (let ([next-id (gensym)])
-             (inner datum next-id
-                    (Graph-add-node gcc (Node uid (format "~a ~a" f args))
-                                    #:connects (list next-id)))))
-          ([list 'if C T F]
-           (let ([leftid (gensym)]
-                 [rightid (gensym)])
-             (let ([rightc (inner F rightid gcc #:next-section ns)])
-               (let ([leftc (inner T leftid rightc #:next-section ns)])
-                 (Graph-add-node leftc
-                                 (Node uid (format "if ~a" C))
-                                 #:connects (list leftid rightid))))))
+;; steps to converting to a graph
+;; 1. differentiate between a (define x y) and a (define (f ...) c ...)
+;; 2. separate the two into different categories (binding vs function)
+;; 3. create a generalized code parser that parses all types of conditionals
+;; 4. if we reach a `begin` block, we start over and treat it like a sequence
 
-          ([list x ...]
-           (let ([next-id (gensym)])
-             (inner (cdr x) next-id 
-                    (inner (car x) uid gcc
-                           #:next-section (if (empty? (cdr x)) #f next-id)))))
-          
-          (dat (Graph-add-node gcc
-                               (Node uid (format "~a" dat))
-                               #:connects
-                               (if (not (eqv? #f ns))
-                                   (list ns)
-                                   '())))
-          )))
-  (let ([first-sym (gensym)])
-    (inner code first-sym (Graph-init first-sym))))
+;; This is the main entrypoint to defer to the correct branches
+(define (code->graph code)
+  (match code
+    ([list 'define (list f args ...) datum ...]
+     (let ([id       (gensym)]
+           [first-id (gensym)])
+       (parse-sequence datum first-id 
+                       (Graph-add-node
+                        (Graph-init id)
+                        (Node id (format "~a ~a" f args))
+                        #:connects (list first-id)))))
+    ([list 'define varname result]
+     (let ([id (gensym)])
+       (parse-code result id (Graph-init id))))
+    (else (error "wtf is this?"))))
+
+
+
+;; A code block is a singular piece of code that can
+;; be translated into a graph-like structure by nesting
+;; it's components. An If has two branches, cond and
+;; case have many, and when/unless/begin are considered
+;; "sequences" because they contain many pieces of code
+(define (parse-code code uid gcc #:next-section [ns #f])
+  (puts "--Code--\n")
+  (puts "--Code--\n")
+  (puts "uid: ~a\n" uid)
+  (puts "C: ~a\n" code)
+  (match code
+    ([list 'let (list binds ...) seq ...]
+     (displayln "Got a Let"))
+    ([list 'if C T F]
+     (let ([leftid  (gensym)]
+           [rightid (gensym)])
+       (let ([rightcc (parse-code F rightid gcc #:next-section ns)])
+         (let ([leftcc (parse-code T leftid rightcc #:next-section ns)])
+           (Graph-add-node leftcc (Node uid (format "if ~a" C))
+                           #:connects (list leftid rightid))))))
+    ([list 'cond conds ...]
+     (displayln "Got a cond"))
+    ([list 'case v seq ...]
+     (displayln "Got a case"))
+    ([list 'when C seq ...]
+     (displayln "Got a when"))
+    ([list 'unless C seq ...]
+     (displayln "Got an unless"))
+    ([list 'begin seq ...]
+     (displayln "Got a begin"))
+  (datum
+   (Graph-add-node gcc
+                   (Node uid (format "~a" datum))
+                   #:connects
+                   (if (not (eqv? #f ns))
+                            (list ns)
+                            '())))))
+
+
+;; A sequence of code is different.
+;; A sequence is a linear list of actions to take, which may not have
+;; any impact on other functions in the sequence, but are still executed
+;; in a linear first-in-first-out fashion.
+;; A sequence is like `begin`, where results are stored, but discarded
+;; per each execution, if not bound locally via let.
+;;
+;; Example:
+;; ```
+;; (begin
+;;  (displayln hello)
+;;  (+ 1 2 3))
+;; ```
+;; While displayln returns void, it's result is not connected to
+;; the + call, but displayln occurs before +, so in that sense,
+;; the "flow" is displayln first, then +, meaning displayln
+;; connects to +
+;;
+;; To parse this, we must iterate over all expressions in a sequence
+;; and link the final outputs of each code piece to the next sequence
+;; by using the #:next-section hidden variable in parse-code.
+;; parse-code will use #:next-section when it's at the bottom of an
+;; expression tree to connect to the next sequence.
+(define (parse-sequence codes sid gcc)
+  (printf "----Section----\n")
+  (printf "sid: ~a\n" sid)
+  (printf "c: ~a\n" codes)
+  (match codes
+    ([list lastcode]
+     (displayln "GOT ONE ITEM")
+     (parse-code lastcode sid gcc))
+    ([list code1 code2]
+     (displayln "GOT TWO ITEMS")
+     (let ([id1 (gensym)]
+           [id2 (gensym)])
+       (parse-code code2 id2
+                   (parse-code code1 sid gcc
+                               #:next-section id2))))
+    ([list codes ...]
+     (displayln "GOT N ITEMS")
+     (let ([id1 (gensym)]
+           [id2 (gensym)])
+       (parse-sequence (cdr codes)
+                       id2
+                       (parse-code (car codes) sid gcc
+                                   #:next-section id2))))
+    (_ gcc)))
+     
 
 
 
@@ -219,7 +294,7 @@ This will be used to build our virtual graph traversal structure
 
 (define (Render-to fname)
 
-  (define graphs (map block->graph-items (*things-to-graph*)))
+  (define graphs (map code->graph (*things-to-graph*)))
   (for ([g graphs])
     (displayln g))
   
@@ -241,9 +316,22 @@ This will be used to build our virtual graph traversal structure
   (if (= time 12)
       "Morbin time"
       "Not morbin time")
-  (displayln "get morbed")
-  (void))
+  (displayln "get morbed"))
+
+
+(define/uml (code->uml code)
+  (displayln "You want to make a graph")
+  (if (list? code)
+      (code->graph code)
+      "Not a code list")
+  (displayln "Your code was UML'd"))
+
+
+;(for ([code (*things-to-graph*)])
+;  (displayln code)
+;  (displayln (code->graph code)))
 
 (Render-to "Test.dot")
+
 
 ; end
