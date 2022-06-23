@@ -293,7 +293,6 @@ This will be used to build our virtual graph traversal structure
 
 
 (define (Render-to fname)
-
   (define graphs (map code->graph (*things-to-graph*)))
   (for ([g graphs])
     (displayln g))
@@ -304,19 +303,6 @@ This will be used to build our virtual graph traversal structure
       (parameterize ([current-output-port out])
         (for ([g graphs])
           (write-graph-dot g)))))) 
-
-
-;; testing section
-(define/uml (pet animal time)
-  (if (string=? animal "dog")
-      (if (< time 12)
-          "Walk time"
-          "Lunch time")
-      "You don't know what to do with this animal")
-  (if (= time 12)
-      "Morbin time"
-      "Not morbin time")
-  (displayln "get morbed"))
 
 
 (define/uml (code->uml code)
