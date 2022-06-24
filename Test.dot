@@ -1,0 +1,169 @@
+digraph {
+g2401 [label="no guns"]
+g2402 [label="has guns"]
+g2403 [label="give guns to fetuses!!"]
+g2404 [label="be damn proud"]
+g2392 [label="politician (event)"]
+g2393 [label="begin"]
+g2394 [label="match event"]
+g2395 [label="children dead"]
+g2396 [label="politician shot"]
+g2397 [label="else"]
+g2398 [label="Thoughts and prayers"]
+g2399 [label="We need guns!!"]
+g2400 [label="match fetus"]
+g2402 -> g2404
+g2401 -> g2403
+g2400 -> g2402
+g2400 -> g2401
+g2397 -> g2400
+g2396 -> g2399
+g2395 -> g2398
+g2394 -> g2397
+g2394 -> g2396
+g2394 -> g2395
+g2393 -> g2394
+g2392 -> g2393
+}
+digraph {
+g2433 [label="Graph-add-node"]
+g2449 [label="Got a begin
+"]
+g2465 [label="if (empty? datum)"]
+g2418 [label="match code"]
+g2434 [label="leftcc"]
+g2450 [label="puts"]
+g2466 [label="gcc"]
+g2419 [label="C: ~a
+"]
+g2435 [label="(Node uid (format if ~a C))"]
+g2451 [label="Got a match"]
+g2467 [label="Graph-add-node"]
+g2420 [label="code"]
+g2436 [label="#:connects"]
+g2452 [label="if (empty? args)"]
+g2468 [label="gcc"]
+g2405 [label="parse-code (code uid gcc #:next-section (ns #f))"]
+g2421 [label="(list (quote let) (list binds ...) seq ...)"]
+g2437 [label="list"]
+g2453 [label="parse-code"]
+g2469 [label="(Node uid (format ~a datum))"]
+g2406 [label="puts"]
+g2422 [label="(list (quote if) C T F)"]
+g2438 [label="leftid"]
+g2454 [label="parse-code"]
+g2470 [label="#:connects"]
+g2423 [label="(list (quote cond) conds ...)"]
+g2439 [label="rightid"]
+g2455 [label="args"]
+g2471 [label="if (not (eqv? #f ns))"]
+g2408 [label="puts"]
+g2424 [label="(list (quote case) V seq ...)"]
+g2440 [label="puts"]
+g2456 [label="sub-id"]
+g2472 [label="list"]
+g2409 [label="--Code--
+"]
+g2425 [label="(list (quote when) C seq ...)"]
+g2441 [label="Got a cond
+"]
+g2457 [label="(Graph-add-node gcc (Node uid (format ~a fn)) #:connects (list sub-id))"]
+g2473 [label="quote"]
+g2426 [label="(list (quote unless) C seq ...)"]
+g2442 [label="puts"]
+g2458 [label="#:next-section"]
+g2411 [label="puts"]
+g2427 [label="(list (quote begin) seq ...)"]
+g2443 [label="Got a case
+"]
+g2459 [label="ns"]
+g2475 [label="ns"]
+g2412 [label="--Code--
+"]
+g2428 [label="(list (quote match) V branches ...)"]
+g2444 [label="puts"]
+g2460 [label="fn"]
+g2429 [label="(list fn args ...)"]
+g2445 [label="Got a when
+"]
+g2461 [label="uid"]
+g2414 [label="puts"]
+g2430 [label="datum"]
+g2446 [label="puts"]
+g2462 [label="gcc"]
+g2415 [label="uid: ~a
+"]
+g2431 [label="puts"]
+g2447 [label="Got an unless"]
+g2463 [label="#:next-section"]
+g2416 [label="uid"]
+g2432 [label="Got a Let"]
+g2448 [label="puts"]
+g2464 [label="ns"]
+g2465 -> g2467
+g2465 -> g2466
+g2471 -> g2473
+g2471 -> g2472
+g2472 -> g2475
+g2473 -> g2474
+g2470 -> g2471
+g2469 -> g2470
+g2468 -> g2469
+g2467 -> g2468
+g2430 -> g2465
+g2452 -> g2454
+g2452 -> g2453
+g2463 -> g2464
+g2462 -> g2463
+g2461 -> g2462
+g2460 -> g2461
+g2453 -> g2460
+g2458 -> g2459
+g2457 -> g2458
+g2456 -> g2457
+g2455 -> g2456
+g2454 -> g2455
+g2429 -> g2452
+g2450 -> g2451
+g2428 -> g2450
+g2448 -> g2449
+g2427 -> g2448
+g2446 -> g2447
+g2426 -> g2446
+g2444 -> g2445
+g2425 -> g2444
+g2442 -> g2443
+g2424 -> g2442
+g2440 -> g2441
+g2423 -> g2440
+g2438 -> g2439
+g2437 -> g2438
+g2436 -> g2437
+g2435 -> g2436
+g2434 -> g2435
+g2433 -> g2434
+g2422 -> g2433
+g2431 -> g2432
+g2421 -> g2431
+g2418 -> g2430
+g2418 -> g2429
+g2418 -> g2428
+g2418 -> g2427
+g2418 -> g2426
+g2418 -> g2425
+g2418 -> g2424
+g2418 -> g2423
+g2418 -> g2422
+g2418 -> g2421
+g2420 -> g2418
+g2419 -> g2420
+g2414 -> g2419
+g2416 -> g2414
+g2415 -> g2416
+g2411 -> g2415
+g2412 -> g2411
+g2408 -> g2412
+g2409 -> g2408
+g2406 -> g2409
+g2405 -> g2406
+}
