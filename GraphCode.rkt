@@ -95,6 +95,15 @@ TODO LIST:
     (apply printf args)))
 
 
+;; Macro to re-out to define, but store code in a parameter
+;; The parameter is later flushed with Render-Diagrams
+(define-syntax-rule (define/diagram code ...)
+  (begin
+    (*things-to-graph* (cons `(define code ...)
+                             (*things-to-graph*)))
+    (define code ...)))
+
+
 ;; The basic two structures for describing our graph
 ;; TODO: add support for more shapes to support Graphviz fully
 (struct Node  (id contents) #:transparent)
@@ -148,14 +157,6 @@ TODO LIST:
          uids))))
 
 
-;; Macro to re-out to define, but store code in a parameter
-;; The parameter is later flushed with Render-Diagrams
-(define-syntax-rule (define/diagram code ...)
-  (begin
-    (*things-to-graph* (cons `(define code ...)
-                             (*things-to-graph*)))
-    (define code ...)))
-
 
 
 ;; steps to converting to a graph
@@ -197,7 +198,7 @@ TODO LIST:
 ;; when
 ;; unless
 ;; let
-(define (parse-code code uid gcc #:next-section [ns #f])
+(define/diagram (parse-code code uid gcc #:next-section [ns #f])
   (puts "--Code--\n")
   (puts "--Code--\n")
   (puts "uid: ~a\n" uid)
@@ -285,14 +286,24 @@ TODO LIST:
         (Graph-add-node gcc (Node uid (format "match ~a" V))
                         #:connects (map car pairs))
         pairs)))
-
-  (datum
-   (Graph-add-node gcc
-                   (Node uid (format "~a" datum))
-                   #:connects
-                   (if (not (eqv? #f ns))
-                            (list ns)
-                            '())))))
+    ([list fn args ...]
+     (if (empty? args)
+         (parse-code fn uid gcc #:next-section ns)
+         (let ([sub-id (gensym)])
+           (parse-code args sub-id
+                       (Graph-add-node gcc
+                                       (Node uid (format "~a" fn))
+                                       #:connects (list sub-id))
+                       #:next-section ns))))
+    (datum
+     (if (empty? datum)
+         gcc
+         (Graph-add-node gcc
+                         (Node uid (format "~a" datum))
+                         #:connects
+                         (if (not (eqv? #f ns))
+                             (list ns)
+                             '()))))))
 
 
 ;; A sequence of code is different.
@@ -335,7 +346,7 @@ TODO LIST:
                        id2
                        (parse-code (car codes) sid gcc
                                    #:next-section id2))))
-    (_ gcc)))
+    (else gcc)))
      
 
 ;; Find all edges in the graph that correspond with k
@@ -381,7 +392,7 @@ TODO LIST:
   (require rackunit)
   (*diagram-verbosity* #t)
 
-  (define/diagram (test-function x)
+  (define (test-function x)
     (begin
       (case x
         ((1 2 3 4 5) "odd")
