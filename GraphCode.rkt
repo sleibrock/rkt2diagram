@@ -15,49 +15,10 @@ removing the need to design UML first, code later.
 You can now code first, then have UML documentation
 later.
 
----
-Convert the expressions into graph form
-
-(if (= x 5)
-    (displayln "is true")
-    (displayln "isn't true"))
-
-digraph {
-         "if (= x 5)" -> "(displayln "is true")"
-         "if (= x 5)" -> "(displayln "isn't true")"
-}
-
----
-
-(cond
-  ([= x 5] 3)
-  (else    4))
-
-digraph {
-         "cond" -> "(= x 5)"
-         "cond" -> "else"
-         "(= x 5)" -> "3"
-         "else" -> "4"
-}
-
----
-
-(case x
-  ((a b c) 4)
-  (else    0))
-
-digraph {
-         "case" -> "(a b c)"
-         "case" -> "else"
-         "(a b c)" -> "4"
-         "else" -> 0
-}
-
 
 The program should be able to mimic these basic flows, as well
 as conditionals like `when` and `unless`, which are easy
 to implement from the same flow as `if`
-
 
 Multiple sections of code (aka a sequence of code) like a `begin`
 sequence should be connected properly.
@@ -67,8 +28,8 @@ exactly as it would with Racket code.
 
 
 TODO LIST:
-* case
-* match
+* different styles of edges
+* different shapes
 |#
 
 
@@ -108,6 +69,7 @@ TODO LIST:
 ;; TODO: add support for more shapes to support Graphviz fully
 (struct Node  (id contents) #:transparent)
 (struct Graph (entrynode nodes edges) #:transparent)
+(struct Edge  (id1 id2 style text))
 
 
 ;; Graph-init - given an ID, create an empty graph
@@ -118,12 +80,14 @@ TODO LIST:
          (make-immutable-hash '())
          '()))
 
+
 ;; Singular add edge function
 (define (Graph-add-edge G node-id other-id)
   (Graph (Graph-entrynode G)
          (Graph-nodes G)
          (cons `(,node-id . ,other-id)
                (Graph-edges G))))
+
 
 ;; a multi-add edge function, which acts based around
 ;; the IDs received on the right side.
@@ -155,8 +119,6 @@ TODO LIST:
                 (Graph-edges G))
          (Node-id node)
          uids))))
-
-
 
 
 ;; steps to converting to a graph
@@ -198,7 +160,7 @@ TODO LIST:
 ;; when
 ;; unless
 ;; let
-(define/diagram (parse-code code uid gcc #:next-section [ns #f])
+(define (parse-code code uid gcc #:next-section [ns #f])
   (puts "--Code--\n")
   (puts "--Code--\n")
   (puts "uid: ~a\n" uid)
@@ -399,9 +361,8 @@ TODO LIST:
         ((2 4 5 6 10) "even")
         (else "What?"))
       (displayln "kinda done")))
-  
+
   (Render-Diagrams "Test.dot")
   )
-
 
 ; end
