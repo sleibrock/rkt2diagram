@@ -66,25 +66,9 @@ should connect to the following `if` body, and so on and so forth,
 exactly as it would with Racket code.
 
 
-There will be at least 5 rules for code here to render.
-* if
-* cond
-* case
-* when
-* unless
-
-Since code can look similar in many places, we need to bind
-IDs to each code datum using `gensym` to generate IDs on the fly.
-This will be used to build our virtual graph traversal structure
-
-
 TODO LIST:
-* cond
-* let
-* begin
 * case
-* when
-* unless
+* match
 |#
 
 
@@ -100,12 +84,14 @@ TODO LIST:
   (make-parameter '()))
 
 
-(define *verbosity*
+;; parameter to control the output of the program
+(define *diagram-verbosity*
   (make-parameter #f))
 
 
+;; a generic printf wrapper contained underneath a parameter
 (define (puts . args)
-  (when (*verbosity*)
+  (when (*diagram-verbosity*)
     (apply printf args)))
 
 
@@ -123,12 +109,15 @@ TODO LIST:
          (make-immutable-hash '())
          '()))
 
+;; Singular add edge function
 (define (Graph-add-edge G node-id other-id)
   (Graph (Graph-entrynode G)
          (Graph-nodes G)
          (cons `(,node-id . ,other-id)
                (Graph-edges G))))
 
+;; a multi-add edge function, which acts based around
+;; the IDs received on the right side.
 (define (Graph-add-edges G node-id [other-ids '()])
   (cond
     ([empty?   other-ids] G)
@@ -141,6 +130,10 @@ TODO LIST:
             (map (λ (gid) (cons node-id gid)) other-ids)))))
   
 
+;; Add a node to a given graph G
+;; the #:connects keyword will help bind edges
+;; to avoid multiple calls to Graph-add-edge
+;; creating awkward code
 (define (Graph-add-node G node #:connects [uids #f])
   (let ([nodes (Graph-nodes G)])
     (if (hash-has-key? nodes (Node-id node))
@@ -155,7 +148,8 @@ TODO LIST:
          uids))))
 
 
-
+;; Macro to re-out to define, but store code in a parameter
+;; The parameter is later flushed with Render-Diagrams
 (define-syntax-rule (define/diagram code ...)
   (begin
     (*things-to-graph* (cons `(define code ...)
@@ -169,7 +163,7 @@ TODO LIST:
 ;; 2. separate the two into different categories (binding vs function)
 ;; 3. create a generalized code parser that parses all types of conditionals
 ;; 4. if we reach a `begin` block, we start over and treat it like a sequence
-
+;;
 ;; This is the main entrypoint to defer to the correct branches
 (define (code->graph code)
   (match code
@@ -187,12 +181,22 @@ TODO LIST:
     (else (error "wtf is this?"))))
 
 
-
-;; A code block is a singular piece of code that can
-;; be translated into a graph-like structure by nesting
-;; it's components. An If has two branches, cond and
-;; case have many, and when/unless/begin are considered
-;; "sequences" because they contain many pieces of code
+;; parse-code handles singular pieces of code
+;; These code instructions can then be translated into graph
+;; structures and connecting the branches downards like a
+;; "flow chart" diagram
+;;
+;; if - 2 branches
+;; cond - many branches
+;; case - many branches
+;;
+;; blocks can be encountered and must be sent to parse-sequence
+;; instead, as those deal with groups of code
+;;
+;; begin
+;; when
+;; unless
+;; let
 (define (parse-code code uid gcc #:next-section [ns #f])
   (puts "--Code--\n")
   (puts "--Code--\n")
@@ -200,7 +204,7 @@ TODO LIST:
   (puts "C: ~a\n" code)
   (match code
     ([list 'let (list binds ...) seq ...]
-     (puts "Got a Let")
+     (puts "Got a Let") ; a `let` block isn't necessarily diagram flow, it's bindings
      (parse-sequence seq uid gcc))
     ([list 'if C T F]
      (let ([leftid  (gensym)]
@@ -210,27 +214,78 @@ TODO LIST:
            (Graph-add-node leftcc (Node uid (format "if ~a" C))
                            #:connects (list leftid rightid))))))
     ([list 'cond conds ...]
-     (puts "Got a cond"))
-    ([list 'case v seq ...]
-     (puts "Got a case"))
+     (puts "Got a cond\n")
+     (let ([pairs (map (λ (c) (cons (gensym) c)) conds)])
+       (foldl
+        (λ (con-p acc)
+          (let ([datum   (cdr con-p)]
+                [left-id (car con-p)])
+            (let ([left-side  (car datum)]
+                  [right-side (car (cdr datum))]
+                  [right-id   (gensym)])
+              (parse-code right-side right-id
+               (Graph-add-node acc
+                               (Node left-id (format "~a" left-side))
+                               #:connects (list right-id))
+               #:next-section ns))))
+        (Graph-add-node gcc (Node uid (format "cond"))
+                        #:connects (map car pairs))
+        pairs)))
+    ([list 'case V seq ...]
+     (puts "Got a case\n")
+     (let ([pairs (map (λ (c) (cons (gensym) c)) seq)])
+       (foldl
+        (λ (con-p acc)
+          (let ([datum   (cdr con-p)]
+                [left-id (car con-p)])
+            (let ([left-side  (car datum)]
+                  [right-side (car (cdr datum))]
+                  [right-id   (gensym)])
+              (parse-code right-side right-id
+               (Graph-add-node acc
+                               (Node left-id (format "~a" left-side))
+                               #:connects (list right-id))
+               #:next-section ns))))
+        (Graph-add-node gcc (Node uid (format "match ~a" V))
+                        #:connects (map car pairs))
+        pairs)))
     ([list 'when C seq ...]
-     (puts "Got a when")
+     (puts "Got a when\n")
      (let ([when-id (gensym)])
        (parse-sequence seq when-id
                        (Graph-add-node gcc (Node uid (format "when ~a" C))
                                        #:connects (list when-id)))))
     ([list 'unless C seq ...]
-     (displayln "Got an unless")
+     (puts "Got an unless")
      (let ([unless-id (gensym)])
        (parse-sequence seq unless-id
                        (Graph-add-node gcc (Node uid (format "unless ~a" C))
                                        #:connects (list unless-id)))))
     ([list 'begin seq ...]
-     (puts "Got a begin")
+     (puts "Got a begin\n")
      (let ([begin-id (gensym)])
        (parse-sequence seq begin-id
                        (Graph-add-node gcc (Node uid "begin")
                                        #:connects (list begin-id)))))
+    ([list 'match V branches ...]
+     (puts "Got a match")
+     (let ([pairs (map (λ (c) (cons (gensym) c)) branches)])
+       (foldl
+        (λ (con-p acc)
+          (let ([datum   (cdr con-p)]
+                [left-id (car con-p)])
+            (let ([left-side  (car datum)]
+                  [right-side (car (cdr datum))]
+                  [right-id   (gensym)])
+              (parse-code right-side right-id
+               (Graph-add-node acc
+                               (Node left-id (format "~a" left-side))
+                               #:connects (list right-id))
+               #:next-section ns))))
+        (Graph-add-node gcc (Node uid (format "match ~a" V))
+                        #:connects (map car pairs))
+        pairs)))
+
   (datum
    (Graph-add-node gcc
                    (Node uid (format "~a" datum))
@@ -324,16 +379,16 @@ TODO LIST:
 
 (module+ test
   (require rackunit)
-  (*verbosity* #t)
+  (*diagram-verbosity* #t)
 
   (define/diagram (test-function x)
     (begin
-      (unless "morbin time" 
-        (if (= x 5)
-            "It's 5"
-            "It's not 5")
-        (displayln "Done morbin"))))
-    
+      (case x
+        ((1 2 3 4 5) "odd")
+        ((2 4 5 6 10) "even")
+        (else "What?"))
+      (displayln "kinda done")))
+  
   (Render-Diagrams "Test.dot")
   )
 
